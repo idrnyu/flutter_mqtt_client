@@ -1,17 +1,29 @@
 import 'package:flutter/foundation.dart';
 import '../services/mqtt_service.dart';
+import '../services/mqtt5_service.dart';
+
+// 统一消息类型，用于在Provider中处理
+class UnifiedMessage {
+  final String topic;
+  final String message;
+
+  UnifiedMessage({required this.topic, required this.message});
+}
 
 class MqttProvider with ChangeNotifier {
   final MqttService _mqttService = MqttService();
+  final Mqtt5Service _mqtt5Service = Mqtt5Service();
   bool _isConnected = false;
-  List<ReceivedMessage> _messages = [];
+  List<UnifiedMessage> _messages = [];
   String _lastError = '';
   final Set<String> _subscribedTopics = {};
+  int _currentMqttVersion = 4; // 默认为MQTT 3.1.1
 
   bool get isConnected => _isConnected;
-  List<ReceivedMessage> get messages => _messages;
+  List<UnifiedMessage> get messages => _messages;
   String get lastError => _lastError;
   Set<String> get subscribedTopics => _subscribedTopics;
+  int get currentMqttVersion => _currentMqttVersion;
 
   MqttProvider() {
     _mqttService.connectionStream.listen((connected) {
@@ -20,21 +32,48 @@ class MqttProvider with ChangeNotifier {
     });
 
     _mqttService.messageStream.listen((message) {
-      _messages.add(message);
+      _messages.add(UnifiedMessage(topic: message.topic, message: message.message));
+      notifyListeners();
+    });
+
+    _mqtt5Service.connectionStream.listen((connected) {
+      _isConnected = connected;
+      notifyListeners();
+    });
+
+    _mqtt5Service.messageStream.listen((message) {
+      _messages.add(UnifiedMessage(topic: message.topic, message: message.message));
       notifyListeners();
     });
   }
 
-  Future<void> connect(String broker, int port, {String? username, String? password, String? clientId}) async {
+  Future<void> connect(String broker, int port, {String? username, String? password, String? clientId, int mqttVersion = 4}) async {
     try {
       _lastError = '连接中...';
-      final success = await _mqttService.connect(
-        broker, 
-        port, 
-        username: username, 
-        password: password,
-        clientId: clientId ?? 'flutter_client'
-      );
+      _currentMqttVersion = mqttVersion;
+      bool success = false;
+      
+      if (mqttVersion == 5) {
+        // 使用MQTT 5.0
+        success = await _mqtt5Service.connect(
+          broker, 
+          port, 
+          username: username, 
+          password: password,
+          clientId: clientId ?? 'flutter_client'
+        );
+      } else {
+        // 使用MQTT 3.1或3.1.1
+        success = await _mqttService.connect(
+          broker, 
+          port, 
+          username: username, 
+          password: password,
+          clientId: clientId ?? 'flutter_client',
+          mqttVersion: mqttVersion
+        );
+      }
+      
       if (success) {
         _lastError = '';
       } else {
@@ -48,23 +87,39 @@ class MqttProvider with ChangeNotifier {
   }
 
   void subscribe(String topic) {
-    _mqttService.subscribe(topic);
+    if (_currentMqttVersion == 5) {
+      _mqtt5Service.subscribe(topic);
+    } else {
+      _mqttService.subscribe(topic);
+    }
     _subscribedTopics.add(topic);
     notifyListeners();
   }
 
   void unsubscribe(String topic) {
-    _mqttService.unsubscribe(topic);
+    if (_currentMqttVersion == 5) {
+      _mqtt5Service.unsubscribe(topic);
+    } else {
+      _mqttService.unsubscribe(topic);
+    }
     _subscribedTopics.remove(topic);
     notifyListeners();
   }
 
   void publish(String topic, String message) {
-    _mqttService.publish(topic, message);
+    if (_currentMqttVersion == 5) {
+      _mqtt5Service.publish(topic, message);
+    } else {
+      _mqttService.publish(topic, message);
+    }
   }
 
   void disconnect() {
-    _mqttService.disconnect();
+    if (_currentMqttVersion == 5) {
+      _mqtt5Service.disconnect();
+    } else {
+      _mqttService.disconnect();
+    }
   }
 
   void clearMessages() {
@@ -75,6 +130,7 @@ class MqttProvider with ChangeNotifier {
   @override
   void dispose() {
     _mqttService.dispose();
+    _mqtt5Service.dispose();
     super.dispose();
   }
 }

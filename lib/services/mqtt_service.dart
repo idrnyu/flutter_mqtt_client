@@ -10,7 +10,7 @@ class MqttService {
   Stream<bool> get connectionStream => _connectionStatus.stream;
   Stream<ReceivedMessage> get messageStream => _messageController.stream;
 
-  Future<bool> connect(String broker, int port, {String? username, String? password, String clientId = 'flutter_client'}) async {
+  Future<bool> connect(String broker, int port, {String? username, String? password, String clientId = 'flutter_client', int mqttVersion = 4}) async {
     _client = MqttServerClient(broker, clientId);
     _client!.port = port;
     _client!.logging(on: true);
@@ -19,6 +19,15 @@ class MqttService {
     _client!.onDisconnected = _onDisconnected;
     _client!.onSubscribed = _onSubscribed;
     _client!.pongCallback = _pong;
+    
+    // 设置MQTT协议版本
+    if (mqttVersion == 3) {
+      _client!.setProtocolV31(); // 3.1
+    } else if (mqttVersion == 4) {
+      _client!.setProtocolV311(); // 3.1.1
+    }
+    // 注意：当前mqtt_client库版本(10.5.1)不支持MQTT 5.0
+    // 如果选择了MQTT 5.0，我们默认使用3.1.1版本
 
     final connMessage = MqttConnectMessage()
         .withClientIdentifier(clientId)
