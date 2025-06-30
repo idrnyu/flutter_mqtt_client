@@ -171,6 +171,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // 添加一个状态变量来控制连接设置的展开/收起状态
+  bool _isConnectionExpanded = false;
+
   Widget _buildConnectionSection(MqttProvider mqttProvider) {
     return Card(
       child: Padding(
@@ -178,77 +181,107 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '连接设置',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _brokerController,
-              decoration: const InputDecoration(
-                labelText: 'Broker地址',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              enabled: !mqttProvider.isConnected,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _portController,
-              decoration: const InputDecoration(
-                labelText: '端口',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              keyboardType: TextInputType.number,
-              enabled: !mqttProvider.isConnected,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _clientIdController,
-              decoration: const InputDecoration(
-                labelText: '客户端ID',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              enabled: !mqttProvider.isConnected,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _usernameController,
-              decoration: const InputDecoration(
-                labelText: '用户名（可选）',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              enabled: !mqttProvider.isConnected,
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _passwordController,
-              decoration: const InputDecoration(
-                labelText: '密码（可选）',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              obscureText: true,
-              enabled: !mqttProvider.isConnected,
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<int>(
-              decoration: const InputDecoration(
-                labelText: 'MQTT版本',
-                contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              ),
-              value: _selectedMqttVersion,
-              items: const [
-                DropdownMenuItem(value: 3, child: Text('MQTT 3.1')),
-                DropdownMenuItem(value: 4, child: Text('MQTT 3.1.1')),
-                DropdownMenuItem(value: 5, child: Text('MQTT 5.0')),
+            // 标题行，包含展开/收起按钮
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '连接设置',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                IconButton(
+                  icon: Icon(_isConnectionExpanded ? Icons.expand_less : Icons.expand_more),
+                  onPressed: () {
+                    setState(() {
+                      _isConnectionExpanded = !_isConnectionExpanded;
+                    });
+                  },
+                ),
               ],
-              onChanged: mqttProvider.isConnected
-                  ? null
-                  : (value) {
-                      setState(() {
-                        _selectedMqttVersion = value!;
-                      });
-                    },
             ),
+            
+            // 始终显示的内容：Broker地址
+            Row(
+              children: [
+                Expanded(
+                  child: Text('Broker: ${_brokerController.text}'),
+                ),
+                const SizedBox(width: 8),
+                Text('MQTT ${_selectedMqttVersion == 3 ? "3.1" : _selectedMqttVersion == 4 ? "3.1.1" : "5.0"}'),
+              ],
+            ),
+            
+            // 展开时显示的详细设置
+            if (_isConnectionExpanded) ...[  
+              const SizedBox(height: 16),
+              TextField(
+                controller: _brokerController,
+                decoration: const InputDecoration(
+                  labelText: 'Broker地址',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                enabled: !mqttProvider.isConnected,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _portController,
+                decoration: const InputDecoration(
+                  labelText: '端口',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                keyboardType: TextInputType.number,
+                enabled: !mqttProvider.isConnected,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _clientIdController,
+                decoration: const InputDecoration(
+                  labelText: '客户端ID',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                enabled: !mqttProvider.isConnected,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _usernameController,
+                decoration: const InputDecoration(
+                  labelText: '用户名（可选）',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                enabled: !mqttProvider.isConnected,
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: '密码（可选）',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                obscureText: true,
+                enabled: !mqttProvider.isConnected,
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                decoration: const InputDecoration(
+                  labelText: 'MQTT版本',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                value: _selectedMqttVersion,
+                items: const [
+                  DropdownMenuItem(value: 3, child: Text('MQTT 3.1')),
+                  DropdownMenuItem(value: 4, child: Text('MQTT 3.1.1')),
+                  DropdownMenuItem(value: 5, child: Text('MQTT 5.0')),
+                ],
+                onChanged: mqttProvider.isConnected
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedMqttVersion = value!;
+                        });
+                      },
+              ),
+            ],
+            
             const SizedBox(height: 16),
             if (!mqttProvider.isConnected)
               ElevatedButton(
@@ -275,13 +308,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: const Text('断开连接'),
               ),
-            const SizedBox(height: 8),
-            Text(
-              mqttProvider.lastError,
-              style: TextStyle(
-                color: mqttProvider.lastError.contains('连接中') ? Colors.blue : Colors.red,
+            
+            if (mqttProvider.lastError.isNotEmpty) ...[  
+              const SizedBox(height: 8),
+              Text(
+                mqttProvider.lastError,
+                style: TextStyle(
+                  color: mqttProvider.lastError.contains('连接中') ? Colors.blue : Colors.red,
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),
@@ -426,8 +462,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               '消息: ${message.message}',
                               style: const TextStyle(fontSize: 14),
-                              maxLines: 10,
-                              overflow: TextOverflow.ellipsis,
+                              // maxLines: 10,
+                              // overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
