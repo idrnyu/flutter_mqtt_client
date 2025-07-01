@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../services/mqtt_service.dart';
 import '../services/mqtt5_service.dart';
+import '../models/ssl_config.dart';
 
 // 统一消息类型，用于在Provider中处理
 class UnifiedMessage {
@@ -18,12 +19,14 @@ class MqttProvider with ChangeNotifier {
   String _lastError = '';
   final Set<String> _subscribedTopics = {};
   int _currentMqttVersion = 4; // 默认为MQTT 3.1.1
+  SslConfig _sslConfig = SslConfig();
 
   bool get isConnected => _isConnected;
   List<UnifiedMessage> get messages => _messages;
   String get lastError => _lastError;
   Set<String> get subscribedTopics => _subscribedTopics;
   int get currentMqttVersion => _currentMqttVersion;
+  SslConfig get sslConfig => _sslConfig;
 
   MqttProvider() {
     _mqttService.connectionStream.listen((connected) {
@@ -47,10 +50,13 @@ class MqttProvider with ChangeNotifier {
     });
   }
 
-  Future<void> connect(String broker, int port, {String? username, String? password, String? clientId, int mqttVersion = 4}) async {
+  Future<void> connect(String broker, int port, {String? username, String? password, String? clientId, int mqttVersion = 4, SslConfig? sslConfig}) async {
     try {
       _lastError = '连接中...';
       _currentMqttVersion = mqttVersion;
+      if (sslConfig != null) {
+        _sslConfig = sslConfig;
+      }
       bool success = false;
       
       if (mqttVersion == 5) {
@@ -60,7 +66,8 @@ class MqttProvider with ChangeNotifier {
           port, 
           username: username, 
           password: password,
-          clientId: clientId ?? 'flutter_client'
+          clientId: clientId ?? 'flutter_client',
+          sslConfig: _sslConfig
         );
       } else {
         // 使用MQTT 3.1或3.1.1
@@ -70,7 +77,8 @@ class MqttProvider with ChangeNotifier {
           username: username, 
           password: password,
           clientId: clientId ?? 'flutter_client',
-          mqttVersion: mqttVersion
+          mqttVersion: mqttVersion,
+          sslConfig: _sslConfig
         );
       }
       
@@ -84,6 +92,11 @@ class MqttProvider with ChangeNotifier {
       _lastError = e.toString();
       notifyListeners();
     }
+  }
+
+  void updateSslConfig(SslConfig sslConfig) {
+    _sslConfig = sslConfig;
+    notifyListeners();
   }
 
   void subscribe(String topic) {

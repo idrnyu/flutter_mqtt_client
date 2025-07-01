@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:mqtt5_client/mqtt5_client.dart';
 import 'package:mqtt5_client/mqtt5_server_client.dart';
+import '../models/ssl_config.dart';
 
 // 定义与mqtt_service.dart中相同的消息类，避免导入冲突
 class Mqtt5ReceivedMessage {
@@ -19,7 +21,7 @@ class Mqtt5Service {
   Stream<bool> get connectionStream => _connectionStatus.stream;
   Stream<Mqtt5ReceivedMessage> get messageStream => _messageController.stream;
 
-  Future<bool> connect(String broker, int port, {String? username, String? password, String clientId = 'flutter_client'}) async {
+  Future<bool> connect(String broker, int port, {String? username, String? password, String clientId = 'flutter_client', SslConfig? sslConfig}) async {
     _client = MqttServerClient(broker, clientId);
     _client!.port = port;
     _client!.logging(on: true);
@@ -31,6 +33,11 @@ class Mqtt5Service {
       _onSubscribed(subscription.topic.toString());
     };
     _client!.pongCallback = _pong;
+
+    // 配置SSL/TLS
+    if (sslConfig != null && sslConfig.protocolType == ProtocolType.mqtts) {
+      await _configureSsl(sslConfig);
+    }
 
     // MQTT 5.0特有的设置
     final connMess = MqttConnectMessage()
@@ -51,6 +58,55 @@ class Mqtt5Service {
       print('Exception: $e');
       _client!.disconnect();
       return false;
+    }
+  }
+
+  Future<void> _configureSsl(SslConfig sslConfig) async {
+    if (!sslConfig.sslEnabled) return;
+
+    try {
+      SecurityContext? securityContext;
+      
+      if (sslConfig.certificateType == CertificateType.selfSigned) {
+        // 自签名证书配置
+        securityContext = SecurityContext(withTrustedRoots: false);
+        
+        if (sslConfig.caFilePath != null && sslConfig.caFilePath!.isNotEmpty) {
+          final caFile = File(sslConfig.caFilePath!);
+          if (await caFile.exists()) {
+            securityContext.setTrustedCertificates(sslConfig.caFilePath!);
+          }
+        }
+        
+        if (sslConfig.clientCertPath != null && sslConfig.clientCertPath!.isNotEmpty &&
+            sslConfig.clientKeyPath != null && sslConfig.clientKeyPath!.isNotEmpty) {
+          final certFile = File(sslConfig.clientCertPath!);
+          final keyFile = File(sslConfig.clientKeyPath!);
+          
+          if (await certFile.exists() && await keyFile.exists()) {
+            securityContext.useCertificateChain(sslConfig.clientCertPath!);
+            securityContext.usePrivateKey(sslConfig.clientKeyPath!);
+          }
+        }
+      } else {
+        // CA签名证书配置
+        securityContext = SecurityContext(withTrustedRoots: true);
+        
+        if (sslConfig.caFilePath != null && sslConfig.caFilePath!.isNotEmpty) {
+          final caFile = File(sslConfig.caFilePath!);
+          if (await caFile.exists()) {
+            securityContext.setTrustedCertificates(sslConfig.caFilePath!);
+          }
+        }
+      }
+
+      _client!.secure = true;
+      _client!.securityContext = securityContext;
+      _client!.onBadCertificate = sslConfig.verifyServerCertificate ? null : (cert) => true;
+      
+    } catch (e) {
+      print('SSL配置错误: $e');
+      throw Exception('SSL配置失败: $e');
     }
   }
 

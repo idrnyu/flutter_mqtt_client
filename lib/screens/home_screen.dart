@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../providers/mqtt_provider.dart';
+import '../models/ssl_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,6 +23,15 @@ class _HomeScreenState extends State<HomeScreen> {
   
   // MQTT版本选择
   int _selectedMqttVersion = 4; // 默认为MQTT 3.1.1
+  
+  // SSL配置
+  ProtocolType _selectedProtocol = ProtocolType.mqtt;
+  bool _sslEnabled = false;
+  bool _verifyServerCertificate = true;
+  CertificateType _selectedCertificateType = CertificateType.caSigned;
+  String? _caFilePath;
+  String? _clientCertPath;
+  String? _clientKeyPath;
 
   @override
   void dispose() {
@@ -200,20 +211,49 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             
-            // 始终显示的内容：Broker地址
+            // 始终显示的内容：Broker地址和协议
             Row(
               children: [
                 Expanded(
                   child: Text('Broker: ${_brokerController.text}'),
                 ),
                 const SizedBox(width: 8),
-                Text('MQTT ${_selectedMqttVersion == 3 ? "3.1" : _selectedMqttVersion == 4 ? "3.1.1" : "5.0"}'),
+                Text('${_selectedProtocol == ProtocolType.mqtt ? "mqtt://" : "mqtts://"} ${_selectedMqttVersion == 3 ? "3.1" : _selectedMqttVersion == 4 ? "3.1.1" : "5.0"}'),
               ],
             ),
             
             // 展开时显示的详细设置
             if (_isConnectionExpanded) ...[  
               const SizedBox(height: 16),
+              
+              // 协议选择
+              DropdownButtonFormField<ProtocolType>(
+                decoration: const InputDecoration(
+                  labelText: '协议类型',
+                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                ),
+                value: _selectedProtocol,
+                items: const [
+                  DropdownMenuItem(value: ProtocolType.mqtt, child: Text('mqtt://')),
+                  DropdownMenuItem(value: ProtocolType.mqtts, child: Text('mqtts://')),
+                ],
+                onChanged: mqttProvider.isConnected
+                    ? null
+                    : (value) {
+                        setState(() {
+                          _selectedProtocol = value!;
+                          if (value == ProtocolType.mqtts) {
+                            _sslEnabled = true;
+                            _portController.text = '8883'; // 默认SSL端口
+                          } else {
+                            _sslEnabled = false;
+                            _portController.text = '1883'; // 默认非SSL端口
+                          }
+                        });
+                      },
+              ),
+              const SizedBox(height: 8),
+              
               TextField(
                 controller: _brokerController,
                 decoration: const InputDecoration(
@@ -280,12 +320,121 @@ class _HomeScreenState extends State<HomeScreen> {
                         });
                       },
               ),
+              
+              // SSL配置部分
+              if (_selectedProtocol == ProtocolType.mqtts) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  'SSL/TLS 配置',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                
+                // SSL开关
+                SwitchListTile(
+                  title: const Text('启用 SSL/TLS'),
+                  subtitle: const Text('使用安全连接'),
+                  value: _sslEnabled,
+                  onChanged: mqttProvider.isConnected
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _sslEnabled = value;
+                          });
+                        },
+                ),
+                
+                // SSL安全验证开关
+                SwitchListTile(
+                  title: const Text('验证服务端证书'),
+                  subtitle: const Text('验证服务端证书链和地址名称'),
+                  value: _verifyServerCertificate,
+                  onChanged: mqttProvider.isConnected || !_sslEnabled
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _verifyServerCertificate = value;
+                          });
+                        },
+                ),
+                
+                // 证书类型选择
+                DropdownButtonFormField<CertificateType>(
+                  decoration: const InputDecoration(
+                    labelText: '证书类型',
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                  value: _selectedCertificateType,
+                  items: const [
+                    DropdownMenuItem(value: CertificateType.caSigned, child: Text('CA Signed Server')),
+                    DropdownMenuItem(value: CertificateType.selfSigned, child: Text('Self Signed')),
+                  ],
+                  onChanged: mqttProvider.isConnected || !_sslEnabled
+                      ? null
+                      : (value) {
+                          setState(() {
+                            _selectedCertificateType = value!;
+                          });
+                        },
+                ),
+                
+                // 自签名证书文件选择
+                if (_selectedCertificateType == CertificateType.selfSigned) ...[
+                  const SizedBox(height: 8),
+                  _buildFilePickerField(
+                    'CA 证书文件',
+                    _caFilePath,
+                    (path) => setState(() => _caFilePath = path),
+                    mqttProvider.isConnected,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildFilePickerField(
+                    '客户端证书文件',
+                    _clientCertPath,
+                    (path) => setState(() => _clientCertPath = path),
+                    mqttProvider.isConnected,
+                  ),
+                  const SizedBox(height: 8),
+                  _buildFilePickerField(
+                    '客户端私钥文件',
+                    _clientKeyPath,
+                    (path) => setState(() => _clientKeyPath = path),
+                    mqttProvider.isConnected,
+                  ),
+                ],
+                
+                // CA签名证书文件选择
+                if (_selectedCertificateType == CertificateType.caSigned) ...[
+                  const SizedBox(height: 8),
+                  _buildFilePickerField(
+                    'CA 证书文件（可选）',
+                    _caFilePath,
+                    (path) => setState(() => _caFilePath = path),
+                    mqttProvider.isConnected,
+                  ),
+                ],
+              ],
             ],
             
             const SizedBox(height: 16),
             if (!mqttProvider.isConnected)
               ElevatedButton(
                 onPressed: () async {
+                  // 创建SSL配置
+                  SslConfig sslConfig = SslConfig(
+                    protocolType: _selectedProtocol,
+                    sslEnabled: _sslEnabled,
+                    verifyServerCertificate: _verifyServerCertificate,
+                    certificateType: _selectedCertificateType,
+                    caFilePath: _caFilePath,
+                    clientCertPath: _clientCertPath,
+                    clientKeyPath: _clientKeyPath,
+                  );
+                  
                   await mqttProvider.connect(
                     _brokerController.text,
                     int.parse(_portController.text),
@@ -293,6 +442,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     username: _usernameController.text.isNotEmpty ? _usernameController.text : null,
                     password: _passwordController.text.isNotEmpty ? _passwordController.text : null,
                     mqttVersion: _selectedMqttVersion,
+                    sslConfig: sslConfig,
                   );
                 },
                 child: const Text('连接'),
@@ -475,6 +625,50 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildFilePickerField(
+    String label,
+    String? currentPath,
+    Function(String?) onPathSelected,
+    bool disabled,
+  ) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            decoration: InputDecoration(
+              labelText: label,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              suffixIcon: currentPath != null
+                  ? IconButton(
+                      icon: const Icon(Icons.clear),
+                      onPressed: disabled ? null : () => onPathSelected(null),
+                    )
+                  : null,
+            ),
+            readOnly: true,
+            controller: TextEditingController(text: currentPath ?? ''),
+            enabled: false,
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          onPressed: disabled
+              ? null
+              : () async {
+                  FilePickerResult? result = await FilePicker.platform.pickFiles(
+                    type: FileType.custom,
+                    allowedExtensions: ['pem', 'crt', 'key', 'p12', 'pfx'],
+                  );
+                  if (result != null) {
+                    onPathSelected(result.files.single.path);
+                  }
+                },
+          child: const Text('选择'),
+        ),
+      ],
     );
   }
 }
