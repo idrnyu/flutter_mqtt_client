@@ -53,6 +53,7 @@ class MqttProvider with ChangeNotifier {
   Future<void> connect(String broker, int port, {String? username, String? password, String? clientId, int mqttVersion = 4, SslConfig? sslConfig}) async {
     try {
       _lastError = '连接中...';
+      notifyListeners(); // 立即通知UI更新
       _currentMqttVersion = mqttVersion;
       if (sslConfig != null) {
         _sslConfig = sslConfig;
