@@ -51,7 +51,7 @@ class MqttService {
       await _client!.connect();
       return true;
     } catch (e) {
-      print('Exception: $e');
+      print('log： Exception: $e');
       _client!.disconnect();
       return false;
     }
@@ -101,7 +101,7 @@ class MqttService {
       _client!.onBadCertificate = sslConfig.verifyServerCertificate ? null : (cert) => true;
       
     } catch (e) {
-      print('SSL配置错误: $e');
+      print('log： SSL配置错误: $e');
       throw Exception('SSL配置失败: $e');
     }
   }
@@ -145,11 +145,11 @@ class MqttService {
   }
 
   void _onSubscribed(String topic) {
-    print('Subscribed to topic: $topic');
+    print('log： Subscribed to topic: $topic');
   }
 
   void _pong() {
-    print('Ping response received');
+    print('log： Ping response received');
   }
 
   void dispose() {

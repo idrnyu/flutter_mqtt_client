@@ -12,9 +12,11 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final _brokerController = TextEditingController(text: 'iot.idrnyu.top');
+  // final _brokerController = TextEditingController(text: 'iot.idrnyu.top');
+  final _brokerController = TextEditingController(text: 'j91fc661.ala.cn-hangzhou.emqxsl.cn');
   final _portController = TextEditingController(text: '1883');
-  final _clientIdController = TextEditingController(text: 'flutter_client');
+  // 使用更短的客户端ID，减小连接数据包大小
+  final _clientIdController = TextEditingController(text: 'flutter_${DateTime.now().millisecondsSinceEpoch % 10000}');
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _subscribeTopicController = TextEditingController();

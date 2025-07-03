@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import '../services/mqtt_service.dart';
 import '../services/mqtt5_service.dart';
 import '../models/ssl_config.dart';
+import '../utils/mqtt_error_handler.dart';
 
 // 统一消息类型，用于在Provider中处理
 class UnifiedMessage {
@@ -58,26 +59,38 @@ class MqttProvider with ChangeNotifier {
       if (sslConfig != null) {
         _sslConfig = sslConfig;
       }
+      
+      // 生成更短的客户端ID，以减小连接数据包大小
+      String effectiveClientId = clientId ?? 'flutter_${DateTime.now().millisecondsSinceEpoch % 10000}';
+      
+      // 记录连接信息
+      print('log： 连接到MQTT服务器: $broker:$port');
+      print('log： MQTT版本: ${mqttVersion == 5 ? "5.0" : mqttVersion == 4 ? "3.1.1" : "3.1"}');
+      print('log： 协议类型: ${_sslConfig.protocolType.name}');
+      print('log： 客户端ID: $effectiveClientId');
+      
       bool success = false;
       
       if (mqttVersion == 5) {
         // 使用MQTT 5.0
+        print('log： 使用MQTT 5.0协议连接');
         success = await _mqtt5Service.connect(
           broker, 
           port, 
           username: username, 
           password: password,
-          clientId: clientId ?? 'flutter_client',
+          clientId: effectiveClientId,
           sslConfig: _sslConfig
         );
       } else {
         // 使用MQTT 3.1或3.1.1
+        print('log： 使用MQTT ${mqttVersion == 4 ? "3.1.1" : "3.1"}协议连接');
         success = await _mqttService.connect(
           broker, 
           port, 
           username: username, 
           password: password,
-          clientId: clientId ?? 'flutter_client',
+          clientId: effectiveClientId,
           mqttVersion: mqttVersion,
           sslConfig: _sslConfig
         );
@@ -85,12 +98,34 @@ class MqttProvider with ChangeNotifier {
       
       if (success) {
         _lastError = '';
+        print('log： MQTT连接成功');
       } else {
-        _lastError = '连接失败';
+        // 检查是否是MQTT5连接，并获取更详细的错误信息
+        if (mqttVersion == 5) {
+          // 尝试获取MQTT5的连接状态和原因码
+          var connectionStatus = _mqtt5Service.getConnectionStatus();
+          if (connectionStatus != null) {
+            // 使用错误处理工具类获取友好的错误消息
+            _lastError = '连接失败: ${MqttErrorHandler.getFriendlyErrorMessage(connectionStatus)}';
+            
+            // 如果是数据包过大错误，记录更多调试信息
+            if (MqttErrorHandler.isPacketTooLargeError(connectionStatus)) {
+              print('log： 检测到数据包过大错误，可能的解决方案:');
+              MqttErrorHandler.getPacketTooLargeSolutions().forEach((solution) {
+                print('log： - $solution');
+              });
+            }
+          } else {
+            _lastError = '连接失败';
+          }
+        } else {
+          _lastError = '连接失败';
+        }
       }
       notifyListeners();
     } catch (e) {
       _lastError = e.toString();
+      print('log： 连接异常: $e');
       notifyListeners();
     }
   }

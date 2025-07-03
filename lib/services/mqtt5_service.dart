@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:mqtt5_client/mqtt5_client.dart';
 import 'package:mqtt5_client/mqtt5_server_client.dart';
 import '../models/ssl_config.dart';
+import '../utils/mqtt_error_handler.dart';
 
 // 定义与mqtt_service.dart中相同的消息类，避免导入冲突
 class Mqtt5ReceivedMessage {
@@ -20,6 +21,11 @@ class Mqtt5Service {
 
   Stream<bool> get connectionStream => _connectionStatus.stream;
   Stream<Mqtt5ReceivedMessage> get messageStream => _messageController.stream;
+  
+  /// 获取当前连接状态
+  MqttConnectionStatus? getConnectionStatus() {
+    return _client?.connectionStatus;
+  }
 
   Future<bool> connect(String broker, int port, {String? username, String? password, String clientId = 'flutter_client', SslConfig? sslConfig}) async {
     _client = MqttServerClient(broker, clientId);
@@ -39,11 +45,11 @@ class Mqtt5Service {
       await _configureSsl(sslConfig);
     }
 
-    // MQTT 5.0特有的设置
+    // MQTT 5.0特有的设置 - 简化连接消息以减小数据包大小
     final connMess = MqttConnectMessage()
         .withClientIdentifier(clientId)
-        .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .startClean() // 使用clean session
+        .withWillQos(MqttQos.atMostOnce); // 降低QoS级别以减小数据包大小
 
     if (username != null) {
       connMess.authenticateAs(username, password);
@@ -52,10 +58,20 @@ class Mqtt5Service {
     _client!.connectionMessage = connMess;
 
     try {
+      print('log： 正在连接到MQTT5服务器: $broker:$port');
       await _client!.connect();
+      print('log： 连接成功');
       return true;
     } catch (e) {
-      print('Exception: $e');
+      print('log： 连接异常: $e');
+      // 检查是否是packetTooLarge错误
+      if (_client!.connectionStatus != null) {
+        print('log： 连接状态: ${_client!.connectionStatus!.state}');
+        print('log： 原因码: ${_client!.connectionStatus!.reasonCode}');
+        if (_client!.connectionStatus!.reasonCode == MqttConnectReasonCode.packetTooLarge) {
+          print('log： 数据包过大错误，尝试简化连接配置或减小证书大小');
+        }
+      }
       _client!.disconnect();
       return false;
     }
@@ -65,47 +81,95 @@ class Mqtt5Service {
     if (!sslConfig.sslEnabled) return;
 
     try {
+      print('log： 配置SSL/TLS连接');
       SecurityContext? securityContext;
       
       if (sslConfig.certificateType == CertificateType.selfSigned) {
         // 自签名证书配置
+        print('log： 使用自签名证书配置');
         securityContext = SecurityContext(withTrustedRoots: false);
         
         if (sslConfig.caFilePath != null && sslConfig.caFilePath!.isNotEmpty) {
           final caFile = File(sslConfig.caFilePath!);
           if (await caFile.exists()) {
+            print('log： 加载CA证书: ${sslConfig.caFilePath}');
+            // 检查证书文件大小
+            final fileSize = await caFile.length();
+            print('log： CA证书文件大小: ${fileSize} 字节');
+            if (fileSize > 10240) { // 如果大于10KB
+              print('log： 警告: CA证书文件较大，可能导致数据包过大错误');
+            }
             securityContext.setTrustedCertificates(sslConfig.caFilePath!);
+          } else {
+            print('log： 错误: CA证书文件不存在: ${sslConfig.caFilePath}');
           }
         }
         
-        if (sslConfig.clientCertPath != null && sslConfig.clientCertPath!.isNotEmpty &&
-            sslConfig.clientKeyPath != null && sslConfig.clientKeyPath!.isNotEmpty) {
+        // 仅在必要时加载客户端证书和私钥
+        bool needClientAuth = sslConfig.clientCertPath != null && sslConfig.clientCertPath!.isNotEmpty &&
+                             sslConfig.clientKeyPath != null && sslConfig.clientKeyPath!.isNotEmpty;
+        
+        if (needClientAuth) {
           final certFile = File(sslConfig.clientCertPath!);
           final keyFile = File(sslConfig.clientKeyPath!);
           
           if (await certFile.exists() && await keyFile.exists()) {
+            print('log： 加载客户端证书: ${sslConfig.clientCertPath}');
+            print('log： 加载客户端私钥: ${sslConfig.clientKeyPath}');
+            
+            // 检查证书和私钥文件大小
+            final certSize = await certFile.length();
+            final keySize = await keyFile.length();
+            print('log： 客户端证书文件大小: ${certSize} 字节');
+            print('log： 客户端私钥文件大小: ${keySize} 字节');
+            
+            if (certSize + keySize > 10240) { // 如果总大小大于10KB
+              print('log： 警告: 客户端证书和私钥文件较大，可能导致数据包过大错误');
+            }
+            
             securityContext.useCertificateChain(sslConfig.clientCertPath!);
             securityContext.usePrivateKey(sslConfig.clientKeyPath!);
+          } else {
+            print('log： 错误: 客户端证书或私钥文件不存在');
           }
+        } else {
+          print('log： 未配置客户端证书和私钥');
         }
       } else {
         // CA签名证书配置
+        print('log： 使用CA签名证书配置');
         securityContext = SecurityContext(withTrustedRoots: true);
         
         if (sslConfig.caFilePath != null && sslConfig.caFilePath!.isNotEmpty) {
           final caFile = File(sslConfig.caFilePath!);
           if (await caFile.exists()) {
+            print('log： 加载CA证书: ${sslConfig.caFilePath}');
+            // 检查证书文件大小
+            final fileSize = await caFile.length();
+            print('log： CA证书文件大小: ${fileSize} 字节');
             securityContext.setTrustedCertificates(sslConfig.caFilePath!);
+          } else {
+            print('log： 警告: CA证书文件不存在，将使用系统根证书');
           }
+        } else {
+          print('log： 使用系统根证书');
         }
       }
 
       _client!.secure = true;
       _client!.securityContext = securityContext;
-      _client!.onBadCertificate = sslConfig.verifyServerCertificate ? null : (cert) => true;
       
+      if (!sslConfig.verifyServerCertificate) {
+        print('log： 禁用服务器证书验证');
+        _client!.onBadCertificate = (cert) => true;
+      } else {
+        print('log： 启用服务器证书验证');
+        _client!.onBadCertificate = null;
+      }
+      
+      print('log： SSL/TLS配置完成');
     } catch (e) {
-      print('SSL配置错误: $e');
+      print('log： SSL配置错误: $e');
       throw Exception('SSL配置失败: $e');
     }
   }
@@ -151,14 +215,33 @@ class Mqtt5Service {
 
   void _onDisconnected() {
     _connectionStatus.add(false);
+    
+    // 记录断开连接的详细信息
+    if (_client?.connectionStatus != null) {
+      print('log： MQTT5断开连接');
+      print('log： 连接状态: ${_client!.connectionStatus!.state}');
+      print('log： 原因码: ${_client!.connectionStatus!.reasonCode}');
+      
+      // 使用错误处理工具类处理断开连接错误
+      String errorMessage = MqttErrorHandler.getFriendlyErrorMessage(_client!.connectionStatus);
+      print('log： 断开原因: $errorMessage');
+      
+      // 特别处理packetTooLarge错误
+      if (MqttErrorHandler.isPacketTooLargeError(_client!.connectionStatus)) {
+        print('log： 数据包过大错误，可能的解决方案:');
+        MqttErrorHandler.getPacketTooLargeSolutions().forEach((solution) {
+          print('log： - $solution');
+        });
+      }
+    }
   }
 
   void _onSubscribed(String topic) {
-    print('Subscribed to topic: $topic');
+    print('log： Subscribed to topic: $topic');
   }
 
   void _pong() {
-    print('Ping response received');
+    print('log： Ping response received');
   }
   
   void dispose() {
