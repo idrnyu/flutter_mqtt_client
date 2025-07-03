@@ -79,16 +79,16 @@ class _HomeScreenState extends State<HomeScreen> {
               Expanded(
                 child: SingleChildScrollView(
                   child: Padding(
-                    padding: const EdgeInsets.only(left: 10.0, right: 10.0, top: 10.0, bottom: 150.0),
+                    padding: const EdgeInsets.only(left: 6.0, right: 6.0, top: 6.0, bottom: 300.0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _buildConnectionSection(mqttProvider),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
                         _buildSubscribeSection(mqttProvider),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
                         _buildSubscriptionsList(mqttProvider),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 6),
                         _buildMessagesSection(mqttProvider),
                       ],
                     ),
@@ -102,18 +102,18 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomSheet: Consumer<MqttProvider>(
         builder: (context, mqttProvider, child) {
           return AnimatedPadding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).padding.bottom + 10.0,
-              left: 10.0,
-              right: 10.0,
-              top: 10.0,
+            padding: const EdgeInsets.only(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              top: 0,
             ),
             duration: const Duration(milliseconds: 100),
             curve: Curves.easeInOut,
             child: Container(
               decoration: BoxDecoration(
                 color: Theme.of(context).colorScheme.surface,
-                borderRadius: BorderRadius.circular(12),
+                // borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.grey.withOpacity(0.3),
@@ -133,7 +133,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       '发布消息',
                       style: Theme.of(context).textTheme.titleMedium,
                     ),
-                    const SizedBox(height: 8),
                     Row(
                       children: [
                         Expanded(
@@ -144,27 +143,28 @@ class _HomeScreenState extends State<HomeScreen> {
                               contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                             ),
                             enabled: mqttProvider.isConnected,
+                            onChanged: (value) {
+                              // 强制更新UI以反映文本变化
+                              setState(() {});
+                            },
                           ),
                         ),
-                        const SizedBox(width: 8),
                         ElevatedButton(
-                          onPressed: mqttProvider.isConnected
+                          onPressed: mqttProvider.isConnected && 
+                                     _publishTopicController.text.isNotEmpty &&
+                                     _messageController.text.isNotEmpty
                               ? () {
-                                  if (_publishTopicController.text.isNotEmpty &&
-                                      _messageController.text.isNotEmpty) {
-                                    mqttProvider.publish(
-                                      _publishTopicController.text,
-                                      _messageController.text,
-                                    );
-                                    _messageController.clear();
-                                  }
+                                  mqttProvider.publish(
+                                    _publishTopicController.text,
+                                    _messageController.text,
+                                  );
+                                  _messageController.clear();
                                 }
                               : null,
                           child: const Text('发布'),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 8),
                     TextField(
                       controller: _messageController,
                       decoration: const InputDecoration(
@@ -173,6 +173,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       maxLines: 3,
                       enabled: mqttProvider.isConnected,
+                      onChanged: (value) {
+                        // 强制更新UI以反映文本变化
+                        setState(() {});
+                      },
                     ),
                   ],
                 ),
@@ -190,7 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildConnectionSection(MqttProvider mqttProvider) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -479,7 +483,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSubscribeSection(MqttProvider mqttProvider) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -487,7 +491,6 @@ class _HomeScreenState extends State<HomeScreen> {
               '订阅主题',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
@@ -498,6 +501,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     ),
                     enabled: mqttProvider.isConnected,
+                    onChanged: (value) {
+                      // 强制更新UI以反映文本变化
+                      setState(() {});
+                    },
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -521,7 +528,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildSubscriptionsList(MqttProvider mqttProvider) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -529,7 +536,6 @@ class _HomeScreenState extends State<HomeScreen> {
               '已订阅主题',
               style: Theme.of(context).textTheme.titleMedium,
             ),
-            const SizedBox(height: 8),
             if (mqttProvider.subscribedTopics.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -548,6 +554,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       title: Text(topic),
                       trailing: IconButton(
                         icon: const Icon(Icons.delete),
+                        iconSize: 16,
                         onPressed: () {
                           mqttProvider.unsubscribe(topic);
                         },
@@ -565,7 +572,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildMessagesSection(MqttProvider mqttProvider) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.all(10.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -585,7 +592,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 8),
             if (mqttProvider.messages.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 8.0),
@@ -599,27 +605,20 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemCount: mqttProvider.messages.length,
                   itemBuilder: (context, index) {
                     final message = mqttProvider.messages[mqttProvider.messages.length - 1 - index];
-                    return Card(
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '主题: ${message.topic}',
-                              style: const TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '消息: ${message.message}',
-                              style: const TextStyle(fontSize: 14),
-                              // maxLines: 10,
-                              // overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '主题: ${message.topic}',
+                          style: const TextStyle(fontSize: 12, color: Colors.green),
                         ),
-                      ),
+                        Text(
+                          '消息: ${message.message}',
+                          style: const TextStyle(fontSize: 12),
+                          // maxLines: 10,
+                          // overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     );
                   },
                 ),
