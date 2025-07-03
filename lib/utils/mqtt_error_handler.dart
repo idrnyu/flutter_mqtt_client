@@ -1,7 +1,8 @@
 import 'package:mqtt5_client/mqtt5_client.dart';
+import 'package:mqtt_client/mqtt_client.dart';
 
-/// MQTT错误处理工具类
-class MqttErrorHandler {
+/// MQTT5错误处理工具类
+class Mqtt5ErrorHandler {
   /// 检查是否是数据包过大错误
   static bool isPacketTooLargeError(MqttConnectionStatus? status) {
     if (status == null) return false;
@@ -48,5 +49,31 @@ class MqttErrorHandler {
       '降低QoS级别（使用QoS 0代替QoS 1或2）',
       '检查是否有大量的遗嘱消息或用户属性',
     ];
+  }
+}
+
+
+/// MQTT错误处理工具类
+class MqttErrorHandler {
+  /// 获取MQTT连接错误的友好提示
+  static String getFriendlyErrorMessage(MqttClientConnectionStatus? status) {
+    if (status == null) return '未知错误';
+
+    switch (status.returnCode) {
+      case MqttConnectReturnCode.notAuthorized:
+        return '认证失败，请检查用户名和密码';
+      case MqttConnectReturnCode.badUsernameOrPassword:
+        return '用户名或密码错误';
+      case MqttConnectReturnCode.unacceptedProtocolVersion:
+        return '无效的协议版本';
+      case MqttConnectReturnCode.identifierRejected:
+        return '无效的客户端标识符';
+      case MqttConnectReturnCode.brokerUnavailable:
+        return 'Broker不可用';
+      case MqttConnectReturnCode.noneSpecified:
+        return '可能是不支持的协议';
+      default:
+        return '连接错误: ${status.returnCode}';
+    }
   }
 }

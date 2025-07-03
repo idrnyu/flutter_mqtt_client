@@ -12,6 +12,11 @@ class MqttService {
   Stream<bool> get connectionStream => _connectionStatus.stream;
   Stream<ReceivedMessage> get messageStream => _messageController.stream;
 
+  /// 获取当前连接状态
+  getConnectionStatus() {
+    return _client?.connectionStatus;
+  }
+
   Future<bool> connect(String broker, int port, {String? username, String? password, String clientId = 'flutter_client', int mqttVersion = 4, SslConfig? sslConfig}) async {
     _client = MqttServerClient(broker, clientId);
     _client!.port = port;
@@ -39,7 +44,7 @@ class MqttService {
     final connMessage = MqttConnectMessage()
         .withClientIdentifier(clientId)
         .startClean()
-        .withWillQos(MqttQos.atLeastOnce);
+        .withWillQos(MqttQos.atMostOnce);
 
     if (username != null) {
       connMessage.authenticateAs(username, password);

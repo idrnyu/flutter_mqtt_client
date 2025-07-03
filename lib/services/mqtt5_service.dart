@@ -223,13 +223,13 @@ class Mqtt5Service {
       print('log： 原因码: ${_client!.connectionStatus!.reasonCode}');
       
       // 使用错误处理工具类处理断开连接错误
-      String errorMessage = MqttErrorHandler.getFriendlyErrorMessage(_client!.connectionStatus);
+      String errorMessage = Mqtt5ErrorHandler.getFriendlyErrorMessage(_client!.connectionStatus);
       print('log： 断开原因: $errorMessage');
       
       // 特别处理packetTooLarge错误
-      if (MqttErrorHandler.isPacketTooLargeError(_client!.connectionStatus)) {
+      if (Mqtt5ErrorHandler.isPacketTooLargeError(_client!.connectionStatus)) {
         print('log： 数据包过大错误，可能的解决方案:');
-        MqttErrorHandler.getPacketTooLargeSolutions().forEach((solution) {
+        Mqtt5ErrorHandler.getPacketTooLargeSolutions().forEach((solution) {
           print('log： - $solution');
         });
       }

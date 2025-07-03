@@ -106,12 +106,12 @@ class MqttProvider with ChangeNotifier {
           var connectionStatus = _mqtt5Service.getConnectionStatus();
           if (connectionStatus != null) {
             // 使用错误处理工具类获取友好的错误消息
-            _lastError = '连接失败: ${MqttErrorHandler.getFriendlyErrorMessage(connectionStatus)}';
+            _lastError = '连接失败: ${Mqtt5ErrorHandler.getFriendlyErrorMessage(connectionStatus)}';
             
             // 如果是数据包过大错误，记录更多调试信息
-            if (MqttErrorHandler.isPacketTooLargeError(connectionStatus)) {
+            if (Mqtt5ErrorHandler.isPacketTooLargeError(connectionStatus)) {
               print('log： 检测到数据包过大错误，可能的解决方案:');
-              MqttErrorHandler.getPacketTooLargeSolutions().forEach((solution) {
+              Mqtt5ErrorHandler.getPacketTooLargeSolutions().forEach((solution) {
                 print('log： - $solution');
               });
             }
@@ -119,7 +119,13 @@ class MqttProvider with ChangeNotifier {
             _lastError = '连接失败';
           }
         } else {
-          _lastError = '连接失败';
+          var connectionStatus = _mqttService.getConnectionStatus();
+          if (connectionStatus != null) {
+            // 使用错误处理工具类获取友好的错误消息
+            _lastError = '连接失败: ${MqttErrorHandler.getFriendlyErrorMessage(connectionStatus)}';
+          } else {
+            _lastError = '连接失败';
+          }
         }
       }
       notifyListeners();
