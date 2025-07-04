@@ -20,6 +20,20 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
         ),
+        // 添加builder参数，用于全局处理点击空白处收起键盘
+        builder: (context, child) {
+          return GestureDetector(
+            onTap: () {
+              // 获取当前焦点
+              FocusScopeNode currentFocus = FocusScope.of(context);
+              // 如果当前有焦点且不是主焦点，则取消焦点
+              if (!currentFocus.hasPrimaryFocus && currentFocus.focusedChild != null) {
+                FocusManager.instance.primaryFocus?.unfocus();
+              }
+            },
+            child: child!,
+          );
+        },
         home: const HomeScreen(),
       ),
     );

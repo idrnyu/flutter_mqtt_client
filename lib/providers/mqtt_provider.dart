@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import '../services/mqtt_service.dart';
 import '../services/mqtt5_service.dart';
@@ -29,25 +31,49 @@ class MqttProvider with ChangeNotifier {
   int get currentMqttVersion => _currentMqttVersion;
   SslConfig get sslConfig => _sslConfig;
 
+  // 存储消息和连接状态的监听器，用于在切换MQTT版本时取消
+  StreamSubscription? _mqtt3ConnectionSubscription;
+  StreamSubscription? _mqtt3MessageSubscription;
+  StreamSubscription? _mqtt5ConnectionSubscription;
+  StreamSubscription? _mqtt5MessageSubscription;
+
   MqttProvider() {
-    _mqttService.connectionStream.listen((connected) {
+    // 初始化MQTT 3.1.1的监听器
+    _setupMqtt3Listeners();
+    
+    // 初始化MQTT 5.0的监听器
+    _setupMqtt5Listeners();
+  }
+  
+  // 设置MQTT 3.1.1的监听器
+  void _setupMqtt3Listeners() {
+    _mqtt3ConnectionSubscription = _mqttService.connectionStream.listen((connected) {
       _isConnected = connected;
       notifyListeners();
     });
 
-    _mqttService.messageStream.listen((message) {
-      _messages.add(UnifiedMessage(topic: message.topic, message: message.message));
-      notifyListeners();
+    _mqtt3MessageSubscription = _mqttService.messageStream.listen((message) {
+      // 只有当当前使用的是MQTT 3.1.1时才处理消息
+      if (_currentMqttVersion != 5) {
+        _messages.add(UnifiedMessage(topic: message.topic, message: message.message));
+        notifyListeners();
+      }
     });
-
-    _mqtt5Service.connectionStream.listen((connected) {
+  }
+  
+  // 设置MQTT 5.0的监听器
+  void _setupMqtt5Listeners() {
+    _mqtt5ConnectionSubscription = _mqtt5Service.connectionStream.listen((connected) {
       _isConnected = connected;
       notifyListeners();
     });
 
-    _mqtt5Service.messageStream.listen((message) {
-      _messages.add(UnifiedMessage(topic: message.topic, message: message.message));
-      notifyListeners();
+    _mqtt5MessageSubscription = _mqtt5Service.messageStream.listen((message) {
+      // 只有当当前使用的是MQTT 5.0时才处理消息
+      if (_currentMqttVersion == 5) {
+        _messages.add(UnifiedMessage(topic: message.topic, message: message.message));
+        notifyListeners();
+      }
     });
   }
 
@@ -55,7 +81,27 @@ class MqttProvider with ChangeNotifier {
     try {
       _lastError = '连接中...';
       notifyListeners(); // 立即通知UI更新
+      
+      // 检查是否切换了MQTT版本
+      bool versionChanged = _currentMqttVersion != mqttVersion;
       _currentMqttVersion = mqttVersion;
+      
+      // 如果切换了MQTT版本，重新设置监听器
+      if (versionChanged) {
+        // 取消之前的监听器
+        _mqtt3ConnectionSubscription?.cancel();
+        _mqtt3MessageSubscription?.cancel();
+        _mqtt5ConnectionSubscription?.cancel();
+        _mqtt5MessageSubscription?.cancel();
+        
+        // 重新设置监听器
+        _setupMqtt3Listeners();
+        _setupMqtt5Listeners();
+        
+        // 清空消息列表
+        _messages.clear();
+      }
+      
       if (sslConfig != null) {
         _sslConfig = sslConfig;
       }
@@ -184,6 +230,13 @@ class MqttProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    // 取消所有监听器
+    _mqtt3ConnectionSubscription?.cancel();
+    _mqtt3MessageSubscription?.cancel();
+    _mqtt5ConnectionSubscription?.cancel();
+    _mqtt5MessageSubscription?.cancel();
+    
+    // 释放服务资源
     _mqttService.dispose();
     _mqtt5Service.dispose();
     super.dispose();

@@ -174,10 +174,19 @@ class Mqtt5Service {
     }
   }
 
+  // 存储消息监听器的订阅对象，用于取消订阅时移除监听器
+  StreamSubscription? _messageSubscription;
+
   void subscribe(String topic) {
     if (_client?.connectionStatus?.state == MqttConnectionState.connected) {
+      // 先取消之前的监听器，避免重复接收消息
+      _messageSubscription?.cancel();
+      
+      // 订阅主题
       _client!.subscribe(topic, MqttQos.atLeastOnce);
-      _client!.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
+      
+      // 添加新的监听器
+      _messageSubscription = _client!.updates!.listen((List<MqttReceivedMessage<MqttMessage>> messages) {
         final MqttPublishMessage recMess = messages[0].payload as MqttPublishMessage;
         // 使用utf8.decode解码消息内容
         final String message = recMess.payload.message != null 
@@ -192,6 +201,9 @@ class Mqtt5Service {
     if (_client?.connectionStatus?.state == MqttConnectionState.connected) {
       // MQTT5客户端使用unsubscribeStringTopic方法
       _client!.unsubscribeStringTopic(topic);
+      // 取消消息监听器
+      _messageSubscription?.cancel();
+      _messageSubscription = null;
     }
   }
 
@@ -245,6 +257,10 @@ class Mqtt5Service {
   }
   
   void dispose() {
+    // 取消消息监听器
+    _messageSubscription?.cancel();
+    _messageSubscription = null;
+    
     _connectionStatus.close();
     _messageController.close();
     _client?.disconnect();
